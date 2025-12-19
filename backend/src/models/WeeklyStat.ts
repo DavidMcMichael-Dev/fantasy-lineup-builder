@@ -7,6 +7,8 @@ export interface IWeeklyStat extends Document {
   points: number;
   stats: Record<string, any>;
   updatedAt: Date;
+  opponent_team?: string | null;
+  is_home?: boolean | null;
 }
 
 const WeeklyStatSchema = new Schema<IWeeklyStat>({
@@ -15,7 +17,8 @@ const WeeklyStatSchema = new Schema<IWeeklyStat>({
   week: { type: Number, required: true },
   points: { type: Number, default: 0 },
   stats: { type: Schema.Types.Mixed },
-  updatedAt: { type: Date, default: Date.now }
+  opponent_team: { type: String, default: null },
+  is_home: { type: Boolean, default: null },
 });
 
 // Compound index for efficient queries

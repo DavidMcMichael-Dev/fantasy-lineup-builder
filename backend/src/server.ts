@@ -217,6 +217,7 @@ app.post('/api/game/create', async (req, res) => {
     
     const session = await GameSession.create({
       gameCode,
+      direction: 1,
       season: randomSeason,
       week: randomWeek,
       players: [{
@@ -226,7 +227,7 @@ app.post('/api/game/create', async (req, res) => {
         ready: false
       }],
       pickedPlayers: [],
-      status: 'waiting'
+      status: 'waiting',
     });
     
     res.json({ gameCode, playerId, season: randomSeason, week: randomWeek });
@@ -268,6 +269,17 @@ app.post('/api/game/join', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to join game' });
   }
+});
+
+app.get('/api/stats/scoring/:season/:week', async (req, res) => {
+  const { season, week } = req.params;
+
+  const stats = await WeeklyStat.find(
+    { season: +season, week: +week },
+    { player_id: 1 }
+  );
+
+  res.json(stats.map(s => s.player_id));
 });
 
 app.get('/api/game/:gameCode', async (req, res) => {
@@ -328,11 +340,19 @@ socket.on('pick-player', async (data) => {
     socket.emit('error', { message: 'Player already picked!' });
     return;
   }
+
+  const stat = await WeeklyStat.findOne({
+  player_id: pickedPlayerId,
+  season: session.season,
+  week: session.week
+});
   
   // Add to player's lineup
+
 currentPlayer.lineup.push({
   playerId: pickedPlayerId,
-  points: 0
+  points: stat?.points ?? 0,
+  stats: stat?.stats ?? null
 });
   session.pickedPlayers.push(pickedPlayerId);
   
@@ -350,29 +370,37 @@ if (session.players.every(p => p.lineup.length >= 9)) {
     week: session.week
   });
       
-      console.log('Stats found:', stats.length);
-      
       // Add scores to each player
    for (const player of session.players) {
     let totalPoints = 0;
 
-    player.lineup = player.lineup.map(slot => {
-      const stat = stats.find(s => s.player_id === slot.playerId);
-      const points = stat?.points ?? 0;
-      totalPoints += points;
-
-      return {
-        playerId: slot.playerId,
-        points
-      };
-    });
-
-    player.score = totalPoints;
+for (const slot of player.lineup) {
+  totalPoints += slot.points;
+}
+player.score = totalPoints;
   }
     }
   
   // Switch turn
-  session.currentTurn = (session.currentTurn + 1) % session.players.length;
+  const totalPicks = session.players.reduce(
+  (sum, p) => sum + p.lineup.length,
+  0
+);
+
+// Each round = number of players picks
+const round = Math.floor(totalPicks / session.players.length);
+
+// Even rounds: forward | Odd rounds: backward
+const direction = round % 2 === 0 ? 1 : -1;
+
+if (direction === 1) {
+  session.currentTurn =
+    (session.currentTurn + 1) % session.players.length;
+} else {
+  session.currentTurn =
+    (session.currentTurn - 1 + session.players.length) %
+    session.players.length;
+}
   
   await session.save();
   io.to(gameCode).emit('game-update', session);

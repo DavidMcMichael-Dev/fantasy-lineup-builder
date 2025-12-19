@@ -206,19 +206,6 @@ function LineupBuilder() {
         justifyContent: 'space-between'
       }} className="mobile-header">
         <h2 style={{ margin: 0, color: '#333' }}>Lineup Builder</h2>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          {sidebarOpen ? 'Close' : 'Players'}
-        </button>
       </div>
 
       <div style={{ display: 'flex', flex: 1, flexDirection: 'row' }}>
@@ -230,7 +217,26 @@ function LineupBuilder() {
           padding: '20px',
           overflowY: 'auto'
         }} className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 style={{ marginTop: 0, color: '#333' }}>Available Players</h2>
+                        <button
+                className="close-mobile-menu"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                style={{
+                  display: 'none',
+                  padding: '8px 12px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Close
+              </button>
+              </div>
           
           {/* Position Filter */}
           <div style={{ marginBottom: '15px' }}>
@@ -335,7 +341,31 @@ function LineupBuilder() {
         </div>
 
         {/* Main Content - Lineup */}
-        <div style={{ flex: 1, padding: '20px', minWidth: 0 }}>
+        <div style={{ flex: 1, padding: '20px', minWidth: 0, position: 'relative' }}>
+          {/* Mobile floating button to open player menu */}
+          <button
+            className="open-mobile-menu"
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              display: 'none',
+              position: 'fixed',
+              bottom: '20px',
+              right: '20px',
+              padding: '15px 25px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 12px rgba(0,123,255,0.4)',
+              zIndex: 100
+            }}
+          >
+            ⚡ Add Players
+          </button>
+          
           <h1 style={{ marginTop: 0, color: '#333', display: 'block' }} className="desktop-title">Lineup Builder</h1>
 
           {/* Week Selector */}
@@ -410,7 +440,7 @@ function LineupBuilder() {
           </div>
 
           {/* Lineup Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px' }}>
+          <div style={{gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px' }}>
             {Object.entries(lineup).map(([slot, player]) => {
               const stats = lineupStats[slot];
               return (
@@ -512,16 +542,23 @@ function LineupBuilder() {
           }
           .sidebar {
             position: fixed;
-            top: 60px;
-            left: -100%;
-            width: 85% !important;
-            height: calc(100vh - 60px);
+            bottom: -100%;
+            left: 0;
+            right: 0;
+            top: auto;
+            width: 100% !important;
+            height: 70vh;
             z-index: 1000;
-            transition: left 0.3s ease;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            transition: bottom 0.3s ease;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.2);
+            border-right: none;
+            border-top: 2px solid #ddd;
           }
           .sidebar.open {
-            left: 0;
+            bottom: 0;
+          }
+          .open-mobile-menu {
+            display: block !important;
           }
         }
       `}</style>

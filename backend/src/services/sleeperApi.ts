@@ -23,5 +23,13 @@ export const sleeperApi = {
       `${SLEEPER_BASE_URL}/projections/nfl/regular/${season}/${week}`
     );
     return response.data;
-  }
+  },
+
+  // Get NFL schedule for a week
+async getScheduleForWeek(season: number, week: number) {
+  const response = await axios.get(
+    `${SLEEPER_BASE_URL}/schedule/nfl/${season}/${week}`
+  );
+  return response.data;
+}
 };

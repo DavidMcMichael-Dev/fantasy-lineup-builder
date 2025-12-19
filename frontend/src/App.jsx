@@ -1,11 +1,11 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link } from 'react-router-dom';
 import LineupBuilder from './LineupBuilder';
 import DraftGame from './DraftGame';
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <nav style={{ 
         padding: '15px 20px', 
         backgroundColor: '#007bff',
@@ -33,7 +33,7 @@ function App() {
         <Route path="/" element={<LineupBuilder />} />
         <Route path="/draft" element={<DraftGame />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 

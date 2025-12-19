@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IGameSession extends Document {
   gameCode: string;
+  direction: number;
   season: number;
   week: number;
   players: {
@@ -10,6 +11,7 @@ export interface IGameSession extends Document {
    lineup: {
   playerId: string;
   points: number;
+  stats?: unknown;
 }[];
     ready: boolean;
     score?: number; // Add score field
@@ -22,6 +24,7 @@ export interface IGameSession extends Document {
 
 const GameSessionSchema = new Schema<IGameSession>({
   gameCode: { type: String, required: true, unique: true },
+  direction: { type: Number, default: 1 },
   season: { type: Number, required: true },
   week: { type: Number, required: true },
   players: [{
@@ -29,7 +32,8 @@ const GameSessionSchema = new Schema<IGameSession>({
     name: String,
    lineup: [{
   playerId: { type: String, required: true },
-  points: { type: Number, default: 0 }
+  points: { type: Number, default: 0 },
+  stats: { type: Object },
 }],
     ready: Boolean,
     score: Number // Add score field

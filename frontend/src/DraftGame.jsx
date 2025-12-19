@@ -13,6 +13,38 @@ function DraftGame() {
   const [allPlayers, setAllPlayers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPosition, setSelectedPosition] = useState('ALL');
+  const [playerMenuOpen, setPlayerMenuOpen] = useState(false);
+  const [eligiblePlayerIds, setEligiblePlayerIds] = useState(null);
+
+  useEffect(() => {
+  if (!session?.season || !session?.week) return;
+
+  const fetchScoringPlayers = async () => {
+    const res = await fetch(`${API_URL}/api/lineup/calculate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerIds: allPlayers.map(p => p.player_id),
+        season: session.season,
+        week: session.week
+      })
+    });
+
+    const data = await res.json();
+
+    const scoringIds = new Set(
+      data.stats
+        .filter(s => s.points !== null && s.points !== undefined)
+        .map(s => s.player_id)
+    );
+
+    setEligiblePlayerIds(scoringIds);
+  };
+
+  if (allPlayers.length) {
+    fetchScoringPlayers();
+  }
+}, [session?.season, session?.week, allPlayers]);
 
   useEffect(() => {
     fetchAllPlayers();
@@ -39,6 +71,26 @@ function DraftGame() {
       return () => newSocket.close();
     }
   }, [gameCode, playerId]);
+
+  useEffect(() => {
+  if (!session?.season || !session?.week) return;
+
+  const fetchEligiblePlayers = async () => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/stats/scoring/${session.season}/${session.week}`
+      );
+
+      const ids = await res.json();
+      setEligiblePlayerIds(new Set(ids));
+    } catch (err) {
+      console.error('Failed to load eligible players', err);
+    }
+  };
+
+  fetchEligiblePlayers();
+}, [session?.season, session?.week]);
+
 
   const fetchAllPlayers = async () => {
     const response = await fetch(`${API_URL}/api/players`);
@@ -103,11 +155,11 @@ function DraftGame() {
     socket?.emit('player-ready', { gameCode, playerId });
   };
 
-const getMyLineup = () => {
-  if (!session) return [];
-  const me = session.players.find(p => p.id === playerId);
-  return me?.lineup.map(l => l.playerId) || [];
-};
+  const getMyLineup = () => {
+    if (!session) return [];
+    const me = session.players.find(p => p.id === playerId);
+   return me?.lineup.map(l => l.playerId) || [];  
+  };
 
   const getPositionCount = (position) => {
     const myLineup = getMyLineup();
@@ -143,9 +195,9 @@ const getMyLineup = () => {
     if (wrCount === 3 || rbCount === 3 || teCount === 2) return false; // FLEX full
     return myLineup.length < 9; // Can pick FLEX if lineup not full
   }
-  
-  return counts[position] < limits[position];
-};
+    
+    return counts[position] < limits[position];
+  };
 
 const pickPlayer = (player) => {
   const myLineup = getMyLineup();
@@ -174,24 +226,27 @@ const pickPlayer = (player) => {
       return;
     }
   }
-  
-  socket?.emit('pick-player', {
-    gameCode,
-    playerId,
-    pickedPlayerId: player.player_id
-  });
-};
+    
+    socket?.emit('pick-player', {
+      gameCode,
+      playerId,
+      pickedPlayerId: player.player_id
+    });
+  };
 
   const isMyTurn = () => {
     if (!session) return false;
     const currentPlayer = session.players[session.currentTurn];
     return currentPlayer?.id === playerId;
   };
+const getAvailablePlayers = () => {
+  if (!session || !eligiblePlayerIds) return [];
 
-  const getAvailablePlayers = () => {
-    if (!session) return allPlayers;
-    return allPlayers.filter(p => !session.pickedPlayers.includes(p.player_id));
-  };
+  return allPlayers.filter(p =>
+    !session.pickedPlayers.includes(p.player_id) &&
+    eligiblePlayerIds.has(p.player_id)
+  );
+};
 
   const filteredPlayers = getAvailablePlayers().filter(p => {
     const matchesSearch = p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -386,42 +441,69 @@ const pickPlayer = (player) => {
     return (
       <div style={{ display: 'flex', height: '100vh', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{ 
+        <div className='mobileHeader' style={{ 
           padding: '15px 30px', 
           backgroundColor: '#007bff', 
           color: 'white',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}>
           <div>
-            <h2 style={{ margin: 0 }}>📅 {session.season} Week {session.week}</h2>
+            <h2 style={{ margin: 0,
+              textAlign: 'center'
+             }}>📅 {session.season} Week {session.week}</h2>
           </div>
           <div style={{ 
             fontSize: '24px', 
             fontWeight: 'bold',
             padding: '8px 20px',
             backgroundColor: isMyTurn() ? '#28a745' : 'rgba(255,255,255,0.2)',
-            borderRadius: '8px'
+            borderRadius: '8px',
+            textAlign: 'center'
           }}>
-            { session?.status === 'finished' ? '🏁 Draft Finished' : isMyTurn() ? '🎯 YOUR TURN!' : '⏳ Waiting...'}
+ { session?.status === 'finished' ? '🏁 Draft Finished' : isMyTurn() ? '🎯 YOUR TURN!' : '⏳ Waiting...'}
           </div>
-          <div style={{ fontSize: '18px' }}>
+          <div style={{ fontSize: '18px',
+            textAlign: 'center'
+           }}>
             Your Picks: {myPlayer?.lineup.length || 0}/9
           </div>
         </div>
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
           {/* Player Selection Sidebar */}
-          <div style={{ 
-            width: '400px', 
-            padding: '20px', 
-            overflowY: 'auto', 
-            borderRight: '1px solid #ddd',
-            backgroundColor: '#f9f9f9'
-          }}>
-            <h3 style={{ marginTop: 0 }}>Available Players</h3>
+          <div 
+            className={`player-sidebar ${playerMenuOpen ? 'open' : ''}`}
+            style={{ 
+              width: '400px', 
+              padding: '20px', 
+              overflowY: 'auto', 
+              borderRight: '1px solid #ddd',
+              backgroundColor: '#f9f9f9'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0 }}>Available Players</h3>
+              <button
+                className="close-mobile-menu"
+                onClick={() => setPlayerMenuOpen(false)}
+                style={{
+                  display: 'none',
+                  padding: '8px 12px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Close
+              </button>
+            </div>
             
             <select
               value={selectedPosition}
@@ -505,16 +587,39 @@ const pickPlayer = (player) => {
           </div>
 
           {/* Lineups Display */}
-          <div style={{ flex: 1, padding: '30px', overflowY: 'auto', backgroundColor: '#fff' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+          <div style={{ flex: 1, padding: '30px', overflowY: 'auto', backgroundColor: '#fff', position: 'relative' }}>
+            {/* Mobile floating button to open player menu */}
+            <button
+              className="open-mobile-menu"
+              onClick={() => setPlayerMenuOpen(true)}
+              style={{
+                display: 'none',
+                position: 'fixed',
+                bottom: '20px',
+                right: '20px',
+                padding: '15px 25px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                boxShadow: '0 4px 12px rgba(0,123,255,0.4)',
+                zIndex: 100
+              }}
+            >
+              {session?.status === 'finished' ? '📋 View Players' : isMyTurn() ? '⚡ Pick Player' : '👀 View Players'}
+            </button>
+            <div style={{gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
               {session.players.map((player, idx) => (
                 <div key={idx} style={{ 
                   padding: '25px',
                   backgroundColor: '#f9f9f9',
                   borderRadius: '12px',
                   border: '3px solid ' + (player.id === playerId ? '#007bff' : '#ddd'),
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}>
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  marginBottom: '30px'}}>
                   <div style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between',
@@ -568,10 +673,40 @@ const pickPlayer = (player) => {
                                 {p?.full_name || 'Loading...'}
                               </div>
                               <div style={{ fontSize: '11px', color: '#666' }}>
-                                {p?.position} - {p?.team}
+                                <div>
+                                  {p?.position} - {p?.team}
+                                  </div>
+                                  {slot.stats && (
+                                    <>
+                                      {slot.stats.pass_att !== undefined &&  (
+                                        <>
+                                         Passing: {slot.stats.pass_cmp ?? 0}/{slot.stats.pass_att ?? 0} for {slot.stats.pass_yd ?? 0} yds{' '} & {`${slot.stats.pass_td ?? 0} TDs`} & {`${slot.stats.pass_int ?? 0} INTs`} {<br />}
+                                        </>
+                                      )}
+                                      {slot.stats.rush_yd !== undefined && slot.stats.rush_att !== undefined &&  (
+                                        <>
+                                          Rushing: {slot.stats.rush_att ?? 0} for {slot.stats.rush_yd ?? 0} yds{' '} & {`${slot.stats.rush_td ?? 0} TDs`}  {<br />}
+                                        </>
+                                      )}
+                                      {slot.stats.rec_tgt !== undefined && (
+                                        <>
+                                          Recieving: {slot.stats.rec ?? 0}/{slot.stats.rec_tgt ?? 0} for {slot.stats.rec_yar ?? 0} yds{' '} & {`${slot.stats.rec_td ?? 0} TDs`}  {<br />}
+                                        </>
+                                      )}
+                                      {(slot.stats.sack !== undefined || slot.stats.int !== undefined) && (
+                                        <>
+                                         Defence: {slot.stats.sack ?? 0} Sacks & {slot.stats.int ?? 0} INTs {<br />}
+                                        </>)}
+                                      {slot.stats.fga !== undefined && (
+                                        <>
+                                         Kicking: {slot.stats.fgm ?? 0}/{slot.stats.fga ?? 0} FGs, {slot.stats.xpm ?? 0}/{slot.stats.xpa ?? 0} XPs & {slot.stats.fgm_lng ?? 0} yds long  {<br />}
+                                        </>
+                                      )}
+                                    </>
+                                  )}
                               </div>
                             </div>
-                            {session.status === 'finished' && (
+                                                        {session.status === 'finished' && (
                                 <div style={{
                                 fontWeight: 'bold',
                                 fontSize: '14px',
@@ -653,3 +788,42 @@ const pickPlayer = (player) => {
 }
 
 export default DraftGame;
+
+// Add CSS for mobile responsiveness
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @media (max-width: 768px) {
+      .player-sidebar {
+        position: fixed !important;
+        bottom: -100% !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 70vh !important;
+        border-right: none !important;
+        border-top: 2px solid #ddd !important;
+        transition: bottom 0.3s ease !important;
+        z-index: 1000 !important;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
+      }
+      
+      .player-sidebar.open {
+        bottom: 0 !important;
+      }
+      
+      .close-mobile-menu {
+        display: block !important;
+      }
+      
+      .open-mobile-menu {
+        display: block !important;
+      }
+
+      .mobileHeader {
+      flex-direction: column !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
