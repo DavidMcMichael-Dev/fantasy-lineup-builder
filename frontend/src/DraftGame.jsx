@@ -16,6 +16,53 @@ function DraftGame() {
   const [playerMenuOpen, setPlayerMenuOpen] = useState(false);
   const [eligiblePlayerIds, setEligiblePlayerIds] = useState(null);
 
+
+
+  // Save session to localStorage
+useEffect(() => {
+  if (gameCode && playerId && playerName) {
+    localStorage.setItem('draftGameSession', JSON.stringify({
+      gameCode,
+      playerId,
+      playerName,
+      timestamp: Date.now()
+    }));
+  }
+}, [gameCode, playerId, playerName]);
+
+// Restore session on mount
+useEffect(() => {
+  const savedSession = localStorage.getItem('draftGameSession');
+  if (savedSession) {
+    const { gameCode: savedCode, playerId: savedId, playerName: savedName, timestamp } = JSON.parse(savedSession);
+    
+    // Only restore if less than 2 hours old
+    if (Date.now() - timestamp < 2 * 60 * 60 * 1000) {
+      setGameCode(savedCode);
+      setPlayerId(savedId);
+      setPlayerName(savedName);
+      setScreen('lobby');
+      
+      // Fetch the current session state
+      fetch(`${API_URL}/api/game/${savedCode}`)
+        .then(res => res.json())
+        .then(data => {
+          setSession(data);
+          if (data.status === 'active') {
+            setScreen('game');
+          }
+        })
+        .catch(err => {
+          console.error('Failed to restore session:', err);
+          localStorage.removeItem('draftGameSession');
+        });
+    } else {
+      // Session too old, clear it
+      localStorage.removeItem('draftGameSession');
+    }
+  }
+}, []);
+
   useEffect(() => {
   if (!session?.season || !session?.week) return;
 
@@ -71,6 +118,81 @@ function DraftGame() {
       return () => newSocket.close();
     }
   }, [gameCode, playerId]);
+
+  useEffect(() => {
+  if (gameCode && playerId) {
+    let reconnectTimeout;
+    let isIntentionalDisconnect = false;
+
+    const connectSocket = () => {
+      const newSocket = io(API_URL, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'] // Fallback to polling if websocket fails
+      });
+      
+      setSocket(newSocket);
+
+      newSocket.emit('join-game', { gameCode, playerId });
+
+      newSocket.on('game-update', (updatedSession) => {
+        setSession(updatedSession);
+        if (updatedSession.status === 'active' && screen !== 'game') {
+          setScreen('game');
+        }
+      });
+
+      newSocket.on('error', (error) => {
+        alert(error.message);
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.log('Disconnected:', reason);
+        
+        // Auto-reconnect on unexpected disconnect
+        if (!isIntentionalDisconnect && reason === 'io server disconnect') {
+          reconnectTimeout = setTimeout(() => {
+            console.log('Attempting to reconnect...');
+            newSocket.connect();
+          }, 1000);
+        }
+      });
+
+      newSocket.on('connect', () => {
+        console.log('Connected to server');
+        // Rejoin the game room after reconnect
+        newSocket.emit('join-game', { gameCode, playerId });
+      });
+    };
+
+    connectSocket();
+
+    // Handle page visibility changes (mobile app backgrounding)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('App backgrounded');
+      } else {
+        console.log('App foregrounded - checking connection');
+        // Reconnect when coming back to foreground if disconnected
+        if (socket && !socket.connected) {
+          socket.connect();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isIntentionalDisconnect = true;
+      clearTimeout(reconnectTimeout);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (socket) {
+        socket.close();
+      }
+    };
+  }
+}, [gameCode, playerId]);
 
   useEffect(() => {
   if (!session?.season || !session?.week) return;
@@ -429,6 +551,28 @@ const getAvailablePlayers = () => {
             Ready to Draft! 🎯
           </button>
         )}
+
+        {localStorage.getItem('draftGameSession') && (
+  <button
+    onClick={() => {
+      localStorage.removeItem('draftGameSession');
+      window.location.reload();
+    }}
+    style={{
+      width: '100%',
+      padding: '10px',
+      marginTop: '20px',
+      backgroundColor: '#6c757d',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '14px',
+      cursor: 'pointer'
+    }}
+  >
+    Clear Saved Session
+  </button>
+)}
       </div>
     );
   }
@@ -757,11 +901,14 @@ const getAvailablePlayers = () => {
                     : "🤝 It's a Tie!"}
                 </h1>
                 <div style={{ fontSize: '24px', color: '#666', marginBottom: '30px' }}>
-                  {session.players[0].name}: {session.players[0].score.toFixed(2)} pts  |  
+                  {session.players[0].name}: {session.players[0].score.toFixed(2)} pts <br />
                   {session.players[1].name}: {session.players[1].score.toFixed(2)} pts
                 </div>
                 <button 
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+      localStorage.removeItem('draftGameSession');
+      window.location.reload();
+    }}
                   style={{
                     padding: '18px 50px',
                     fontSize: '20px',

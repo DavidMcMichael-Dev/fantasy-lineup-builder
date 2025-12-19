@@ -10,7 +10,8 @@ function App() {
         padding: '15px 20px', 
         backgroundColor: '#007bff',
         display: 'flex',
-        gap: '20px'
+        gap: '20px',
+        alignItems: 'baseline'
       }}>
         <Link to="/" style={{ 
           color: 'white', 
@@ -28,7 +29,24 @@ function App() {
         }}>
           Draft Battle
         </Link>
-      </nav>
+        {localStorage.getItem('draftGameSession') && (
+  <button
+    onClick={() => {
+      localStorage.removeItem('draftGameSession');
+      window.location.reload();
+    }}
+    style={{
+      color: 'white', 
+          textDecoration: 'none',
+          fontWeight: 'bold',
+          fontSize: '16px',
+          background: 'transparent',
+    }}
+  >
+    Clear Saved Session
+  </button>
+)}
+        </nav>
       <Routes>
         <Route path="/" element={<LineupBuilder />} />
         <Route path="/draft" element={<DraftGame />} />
